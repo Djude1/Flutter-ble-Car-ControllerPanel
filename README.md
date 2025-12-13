@@ -1,16 +1,15 @@
-# ble_car_panel
-
-A new ble_car_panel
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+lib/
+ ├── BLE/
+ │    └── ble_service.dart        // BLE 掃描、連線、送資料
+ │
+ ├── Controllers/
+ │    └── car_controller.dart     // 將 UI 操作轉成控制指令
+ │
+ ├── UI/
+ │    ├── control_page.dart       // 主控制畫面
+ │    ├── status_panel.dart       // BLE 狀態顯示
+ │    └── widgets/
+ │          ├── joystick.dart     // 方向搖桿
+ │          └── vertical_lever.dart // 油門 / 煞車（垂直拉桿）
+ │
+ ├── main.dart                    // App 入口
