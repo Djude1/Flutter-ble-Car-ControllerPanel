@@ -1,0 +1,98 @@
+#-------------------#
+# 1. 核心檔案與IDE/OS設定 #
+#-------------------#
+
+# macOS 檔案
+.DS_Store
+
+# 通用記錄與暫存
+*.log
+*.swp
+*.pyc
+
+# IntelliJ/Android Studio 相關
+# .idea/ 這個資料夾通常包含專案設定，雖然有人會納入版本控制，但通常建議排除
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code 相關
+# 預設不排除，如果不需要在團隊中共享特定設定，可以取消註釋
+#.vscode/
+
+#-------------------#
+# 2. Flutter/Dart 核心排除項 #
+#-------------------#
+
+# Flutter/Dart 專案的工具生成檔案和暫存
+.dart_tool/
+
+# pub 套件快取與鎖定檔案
+.pub-cache/
+.pub/
+
+# 產生的 API 文件
+**/doc/api/
+
+# Flutter 插件依賴
+.flutter-plugins-dependencies
+.flutter-plugins
+
+# build/ 資料夾：所有編譯後的輸出檔案都應排除
+/build/
+
+# 測試覆蓋率報告
+/coverage/
+
+# pubspec.lock 是重要的，通常不排除，但你的原始檔案沒有排除，這是正確的。
+# 這裡特別提到 .metadata 檔案，應排除
+.metadata
+
+#-------------------#
+# 3. 特定平台/編譯輸出檔案 #
+#-------------------#
+
+# Android 相關
+/android/.gradle
+/android/build/
+/android/app/build/
+/android/captures/
+# Android Studio 會將 Build Artifacts 放在這裡
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# iOS 相關
+/ios/Flutter/.last_build_id
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/ephemeral/
+/ios/.symlinks/
+/ios/Pods/
+/ios/.generated-files
+
+# Web 相關 (如果你的專案支援 Web)
+/web/
+
+# Windows 相關
+/windows/Runner/Debug/
+/windows/Runner/Profile/
+/windows/Runner/Release/
+
+# Linux 相關
+/linux/build/
+/linux/snap/
+
+# macOS 相關
+/macos/build/
+/macos/DerivedData/
+
+#-------------------#
+# 4. 其他編譯與符號化 #
+#-------------------#
+
+# 符號化檔案
+app.*.symbols
+
+# 模糊化相關
+app.*.map.json
