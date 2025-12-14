@@ -9,25 +9,21 @@ class CarController {
 
   /// 計算搖桿角度
   double get angleDegrees {
-    // 雖然這裡回傳 0，但在下面的 sector 判斷中，
-    // 我們會優先處理「搖桿沒動」的情況，所以這裡沒關係
     if (joyX == 0 && joyY == 0) return 0;
 
     double radians = atan2(-joyY, joyX);
     double degrees = radians * 180 / pi;
     if (degrees < 0) degrees += 360;
 
-    // 保留修正後的偏移量 (原本方向錯亂的問題)
     double navDegrees = (0 - degrees + 360) % 360;
     return navDegrees;
   }
 
   /// 取得 12 個方位
   int get sector {
-    // ★★★ 關鍵修正：搖桿沒動時，預設為 0 (正前方) ★★★
-    // 這樣當你只拉右邊油門時，車子會預設往前跑，而不是停在原地空轉
+    // 搖桿沒動時，預設為 0 (雖然這裡設 0，但因為下面 power 會被鎖死，所以實際上車不會動)
     if (joyX.abs() < 0.1 && joyY.abs() < 0.1) {
-      return 0; // 0 代表正前方
+      return 0;
     }
 
     double d = (angleDegrees + 15) % 360;
@@ -36,7 +32,18 @@ class CarController {
 
   /// 整合動力輸出
   int get power {
-    if (isBraking) return 0; // 煞車優先
+    // 1. 煞車優先權最高
+    if (isBraking) return 0;
+
+    // =========================================================
+    // ★★★ 修改重點：檢查方向盤是否被操作 ★★★
+    // =========================================================
+    // 如果 X 軸和 Y 軸的絕對值都小於 0.1 (代表搖桿在中間死區沒動)
+    if (joyX.abs() < 0.1 && joyY.abs() < 0.1) {
+      return 0; // 強制將動力設為 0，這時拉油門也沒用
+    }
+
+    // 只有當方向盤有動作時，才輸出油門值
     return throttle.toInt();
   }
 

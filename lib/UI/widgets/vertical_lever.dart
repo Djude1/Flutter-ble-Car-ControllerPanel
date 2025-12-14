@@ -30,14 +30,14 @@ class _VerticalLeverState extends State<VerticalLever> {
 
     return GestureDetector(
       onPanUpdate: (details) {
-        // === 物理阻力算法 (整體提高 30%) ===
-        double currentRatio = widget.value / 100;
+        // === 修改：極低阻力模式 (20% 阻力感) ===
+        // 以前是除以 resistance (大於1的數)，現在我們直接讓它很靈敏
+        // 這裡乘以 0.8 是為了讓手感不會「太滑」，保留一點點控制感，
+        // 但比之前的重手感輕非常多。
+        double sensitivity = 0.8;
 
-        // 阻尼係數：調高至 2.4 (原本 1.8)，模擬更重的機械彈簧感
-        double resistance = 1.0 + (currentRatio * 2.4);
-
-        // 靈敏度：調低至 1.3 (原本 1.65)，手指需要滑動更多距離，營造「重手」感
-        double delta = (-details.delta.dy * 1.3) / resistance;
+        // 直接計算位移，不再使用複雜的阻尼係數
+        double delta = (-details.delta.dy * sensitivity);
 
         double newValue = (widget.value + delta).clamp(0.0, 100.0);
         widget.onChanged(newValue);

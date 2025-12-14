@@ -25,26 +25,22 @@ class _JoystickState extends State<Joystick> {
   void _updateDelta(Offset localPosition) {
     double radius = widget.size / 2;
 
-    // === 阻力調整核心 (減輕 30%) ===
-    // 原本是除以 radius (需推到底才滿速)
-    // 現在除以 radius * 0.7 (只需推到 70% 處即滿速，感覺更輕盈)
-    double effectiveRadius = radius * 0.7;
+    // === 修改：極低阻力/高靈敏度 ===
+    // 原本 effectiveRadius 是 radius * 0.7
+    // 現在改為 radius * 0.4
+    // 意思是你只要推到 40% 的距離，輸出就已經是全速(1.0)了
+    // 這樣手指不需要移動太多，感覺會非常輕盈
+    double effectiveRadius = radius * 0.4;
 
     dx = (localPosition.dx - radius) / effectiveRadius;
     dy = (localPosition.dy - radius) / effectiveRadius;
 
-    // 計算距離，限制在圓內 (邏輯：超過 1.0 就鎖定在 1.0)
+    // 計算距離，限制在圓內
     double dist = dx * dx + dy * dy;
     if (dist > 1) {
-      // 這裡做正規化，保持方向但限制長度
       Offset normalized = Offset(dx, dy) / Offset(dx, dy).distance;
       dx = normalized.dx;
       dy = normalized.dy;
-    } else {
-      // 額外增加：如果還沒到底，加入一點點非線性曲線，讓中間更靈敏
-      // 這是選配的，不喜歡可以拿掉
-      // dx = dx * (1.2);
-      // dy = dy * (1.2);
     }
 
     // 確保最終輸出鎖在 -1 ~ 1
@@ -60,14 +56,20 @@ class _JoystickState extends State<Joystick> {
     double thumbSize = widget.size * 0.4;
     double radius = widget.size / 2;
 
-    // UI 顯示用的位置 (不能因為計算變輕就跑出圓圈外，所以這裡要限制 UI 顯示範圍)
-    // 我們用原本的 radius 來限制 UI 的球球不會飛出去
-    double displayDx = dx;
-    double displayDy = dy;
+    // UI 顯示邏輯：
+    // 雖然計算上很靈敏，但 UI 上的球球我們還是讓它能跑滿整個圓盤
+    // 這樣視覺上比較好看，不會覺得球球被卡在中間
+    double visualDx = dx;
+    double visualDy = dy;
 
-    // 這裡的邏輯是：即使數值滿了，UI 球球還是乖乖待在邊緣
-    double uiX = displayDx * (radius - thumbSize / 2);
-    double uiY = displayDy * (radius - thumbSize / 2);
+    // 限制 UI 球球不跑出框
+    double dist = visualDx * visualDx + visualDy * visualDy;
+    if (dist > 1) {
+      // 已經正規化過了，不用再動
+    }
+
+    double uiX = visualDx * (radius - thumbSize / 2);
+    double uiY = visualDy * (radius - thumbSize / 2);
 
     return GestureDetector(
       onPanStart: (d) => _updateDelta(d.localPosition),

@@ -1,3 +1,5 @@
+// 判斷平台用的 (放在檔案最上面 import 'dart:io';)
+import 'dart:io';
 import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -5,122 +7,137 @@ class BleService {
   BluetoothDevice? device;
   BluetoothCharacteristic? characteristic;
 
-  // ==========================================================
-  // ★★★ 關鍵修正：根據你舊程式碼 (FFA0)，這是正確的 UUID ★★★
-  // ==========================================================
+  // 定義 UUID
   final Guid serviceUuid = Guid('0000FFA0-0000-1000-8000-00805F9B34FB');
   final Guid charUuid =    Guid('0000FFA1-0000-1000-8000-00805F9B34FB');
 
   bool get isConnected => characteristic != null && device != null;
 
+  // 斷線處理
   Future<void> disconnect() async {
-    try {
-      await device?.disconnect();
-    } catch (_) {}
+    if (device != null) {
+      print(">>> [BLE] 正在斷開連線...");
+      try {
+        await device!.disconnect();
+      } catch (e) {
+        print(">>> [BLE] 斷線異常 (可忽略): $e");
+      }
+    }
     device = null;
     characteristic = null;
   }
 
+  // 核心連線邏輯
   Future<BluetoothDevice?> scanAndConnect() async {
-    print(">>> [BLE] 開始掃描 (目標 UUID: FFA0)...");
+    print(">>> [BLE] 開始連線流程...");
 
-    await FlutterBluePlus.stopScan();
+    // 0. 清理舊狀態
+    await disconnect();
+
+    // 1. 【快速通道】檢查是否已經在系統層級連線 (很重要！解決重連失敗的主因)
+    // Android/iOS有時會自己連著藍芽，這時候掃描是掃不到的，必須直接抓出來
+    List<BluetoothDevice> systemDevices = await FlutterBluePlus.connectedSystemDevices;
+    for (var d in systemDevices) {
+      if (_isTargetDevice(d.platformName, d.remoteId.str)) {
+        print(">>> [BLE] 發現系統已連線裝置，直接使用: ${d.platformName}");
+        device = d;
+        return await connectDevice();
+      }
+    }
+
+    // 2. 準備掃描
+    Completer<BluetoothDevice?> completer = Completer();
+    StreamSubscription? scanSub;
 
     try {
-      // 啟動掃描 (4秒)
-      // 這次我們不限制 Service UUID，改用廣泛掃描以免過濾掉
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
+      // 確保掃描前是停止狀態
+      await FlutterBluePlus.stopScan();
+
+      // 監聽掃描結果
+      scanSub = FlutterBluePlus.scanResults.listen((results) {
+        for (ScanResult r in results) {
+          if (_isTargetDevice(r.device.platformName, r.advertisementData.serviceUuids.toString())) {
+            print(">>> [BLE] 掃描發現目標: ${r.device.platformName}");
+
+            // ★★★ 關鍵優化：一找到馬上停止掃描，不再傻傻等 4 秒 ★★★
+            if (!completer.isCompleted) {
+              FlutterBluePlus.stopScan();
+              completer.complete(r.device);
+            }
+            break;
+          }
+        }
+      });
+
+      // 開始掃描 (設定 5 秒超時，沒找到就算了)
+      print(">>> [BLE] 啟動掃描...");
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+
+      // 等待掃描結果或超時
+      device = await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {
+        print(">>> [BLE] 掃描超時，未發現裝置");
+        return null;
+      });
+
     } catch (e) {
-      print(">>> [錯誤] 掃描啟動失敗: $e");
-      return null;
+      print(">>> [BLE] 掃描過程錯誤: $e");
+    } finally {
+      // 確保停止監聽，釋放資源
+      scanSub?.cancel();
+      await FlutterBluePlus.stopScan();
     }
 
-    BluetoothDevice? target;
-
-    // 監聽掃描結果
-    var subscription = FlutterBluePlus.scanResults.listen((scanData) {
-      for (final r in scanData) {
-        String name = r.device.platformName;
-
-        // Debug: 印出來看
-        if (name.isNotEmpty) {
-          print(">>> 發現: [$name] RSSI:${r.rssi} UUIDs:${r.advertisementData.serviceUuids}");
-        }
-
-        // 判斷邏輯：
-        // 1. 如果名字吻合
-        // 2. 或者廣播封包裡直接含有 FFA0
-        // 3. 或者常見的藍芽模組名稱
-        bool hasService = r.advertisementData.serviceUuids.toString().toUpperCase().contains("FFA0");
-
-        if (hasService ||
-            name == "BLE-Car" ||
-            name.contains("JDY") ||
-            name.contains("BT05") ||
-            name.contains("HM-10") ||
-            name.contains("HC-08")) {
-
-          print(">>> 鎖定目標！準備連線: $name");
-          target = r.device;
-          FlutterBluePlus.stopScan();
-          break;
-        }
-      }
-    });
-
-    await Future.delayed(const Duration(seconds: 4));
-    await subscription.cancel();
-    await FlutterBluePlus.stopScan();
-
-    if (target == null) {
-      print(">>> 找不到裝置");
-      return null;
+    // 3. 執行連線
+    if (device != null) {
+      return await connectDevice();
     }
+    return null;
+  }
 
-    print(">>> 正在連線到: ${target!.platformName}");
-    device = target;
-    return await connectDevice();
+  // 輔助判斷：是否為我們的目標車車
+  bool _isTargetDevice(String name, String uuidStr) {
+    String upperName = name.toUpperCase();
+    String upperUuid = uuidStr.toUpperCase();
+
+    return upperUuid.contains("FFA0") ||
+        upperName == "BLE-CAR" ||
+        upperName.contains("JDY") ||
+        upperName.contains("BT05") ||
+        upperName.contains("HM-10");
   }
 
   Future<BluetoothDevice?> connectDevice() async {
     if (device == null) return null;
 
     try {
+      print(">>> [BLE] 正在建立連線: ${device!.platformName}");
+      // autoConnect: false 是為了加快連線速度 (Android 適用)
       await device!.connect(license: License.free, autoConnect: false);
-      print(">>> 連線成功！正在尋找服務 (FFA0)...");
 
-      // 稍微延遲確保服務載入
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Android 需要一點點時間來發現服務
+      if (Platform.isAndroid) {
+        await Future.delayed(const Duration(milliseconds: 300)); // 縮短等待時間
+        // 清除 GATT 快取，解決「連過一次後就連不上」的經典問題
+        try { await device!.clearGattCache(); } catch(_) {}
+      }
 
+      print(">>> [BLE] 尋找服務 FFA0...");
       final services = await device!.discoverServices();
       for (final s in services) {
-        String sUuid = s.uuid.toString().toUpperCase();
-
-        // ★★★ 修正：尋找 FFA0 ★★★
-        if (sUuid.contains("FFA0")) {
-          print(">>> 找到 Service: $sUuid");
-
+        if (s.uuid.toString().toUpperCase().contains("FFA0")) {
           for (final c in s.characteristics) {
-            String cUuid = c.uuid.toString().toUpperCase();
-            // ★★★ 修正：尋找 FFA1 ★★★
-            if (cUuid.contains("FFA1")) {
+            if (c.uuid.toString().toUpperCase().contains("FFA1")) {
               characteristic = c;
-
-              // 嘗試開啟通知 (Notify) - 雖然這專案主要只用寫入
-              if (c.properties.notify) {
-                await c.setNotifyValue(true);
-              }
-
-              print(">>> [成功] 特徵值 (FFA1) 對接完成！");
+              print(">>> [BLE] 成功對接特徵值 FFA1！");
               return device;
             }
           }
         }
       }
-      print(">>> [警告] 找不到 FFA0 服務，請確認模組型號");
-
+      print(">>> [BLE] 連上了但找不到 FFA0 服務");
     } catch (e) {
-      print(">>> [連線錯誤]: $e");
+      print(">>> [BLE] 連線失敗: $e");
+      // 失敗一定要斷乾淨
       disconnect();
     }
     return null;
@@ -131,9 +148,12 @@ class BleService {
     try {
       await characteristic!.write(text.codeUnits, withoutResponse: true);
     } catch (e) {
-      print("發送失敗: $e");
+      // 發送失敗通常代表斷線了
+      print(">>> [BLE] 發送失敗: $e");
     }
   }
 }
+
+
 
 final BleService bleService = BleService();
