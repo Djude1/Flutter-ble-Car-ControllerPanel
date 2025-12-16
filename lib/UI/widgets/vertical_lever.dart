@@ -47,7 +47,7 @@ class _VerticalLeverState extends State<VerticalLever> {
       },
       child: Container(
         width: 70,
-        height: 260,
+        height: 234,
         decoration: BoxDecoration(
           color: const Color(0xFF1A1A1D),
           borderRadius: BorderRadius.circular(35),
